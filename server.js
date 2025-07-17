@@ -6,7 +6,13 @@ const cors = require('cors');
 const { verifyToken } = require('@clerk/backend');
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://myknowledge-phi.vercel.app', // your Vercel frontend URL
+    'http://localhost:3000' // for local development
+  ],
+  credentials: true,
+}));
 app.use(express.json());
 
 mongoose.connect(process.env.MONGODB_URI, {
