@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const { verifyToken } = require('@clerk/backend');
 
 const app = express();
 app.use(cors());
@@ -20,24 +21,39 @@ const noteSchema = new mongoose.Schema({
   tagIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Tag' }],
   isPinned: Boolean,
   isJournal: Boolean,
+  userId: { type: String, required: true }, // Clerk user ID
 });
 
 const tagSchema = new mongoose.Schema({
   name: { type: String, required: true },
   color: { type: String, default: '#999' },
+  userId: { type: String, required: true }, // Clerk user ID
 });
 
 const Note = mongoose.model('Note', noteSchema);
 const Tag = mongoose.model('Tag', tagSchema);
 
-// Get all notes
-app.get('/notes', async (req, res) => {
-  const notes = await Note.find();
+// Clerk JWT verification middleware
+async function requireAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: 'Missing token' });
+  const token = authHeader.split(' ')[1];
+  try {
+    const payload = await verifyToken(token, process.env.CLERK_SECRET_KEY);
+    req.userId = payload.sub;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+}
+
+// --- Notes Endpoints ---
+app.get('/api/notes', requireAuth, async (req, res) => {
+  const notes = await Note.find({ userId: req.userId });
   res.json(notes);
 });
 
-// Add note
-app.post('/notes', async (req, res) => {
+app.post('/api/notes', requireAuth, async (req, res) => {
   const { title, content, tagIds, date, isPinned, isJournal } = req.body;
   const note = new Note({
     title,
@@ -46,84 +62,42 @@ app.post('/notes', async (req, res) => {
     date: date ? new Date(date).toISOString() : undefined,
     isPinned,
     isJournal,
+    userId: req.userId,
   });
   await note.save();
   res.json(note);
 });
 
-// Update note
-app.put('/notes/:id', async (req, res) => {
-  const updated = await Note.findByIdAndUpdate(req.params.id, req.body, { new: true });
+app.get('/api/notes/:id', requireAuth, async (req, res) => {
+  const note = await Note.findOne({ _id: req.params.id, userId: req.userId });
+  if (!note) return res.status(404).json({ error: 'Note not found' });
+  res.json(note);
+});
+
+app.put('/api/notes/:id', requireAuth, async (req, res) => {
+  const { title, content, tagIds, date, isPinned, isJournal } = req.body;
+  const updated = await Note.findOneAndUpdate(
+    { _id: req.params.id, userId: req.userId },
+    { title, content, tagIds, date, isPinned, isJournal },
+    { new: true }
+  );
+  if (!updated) return res.status(404).json({ error: 'Note not found' });
   res.json(updated);
 });
 
-// Delete note
-app.delete('/notes/:id', async (req, res) => {
-  await Note.findByIdAndDelete(req.params.id);
+app.delete('/api/notes/:id', requireAuth, async (req, res) => {
+  const deleted = await Note.findOneAndDelete({ _id: req.params.id, userId: req.userId });
+  if (!deleted) return res.status(404).json({ error: 'Note not found' });
   res.json({ success: true });
 });
 
-// Get tags
-app.get('/tags', async (req, res) => {
-  const tags = await Tag.find();
-  res.json(tags);
-});
-
-// Add tag
-app.post('/tags', async (req, res) => {
-  const tag = new Tag(req.body);
-  await tag.save();
-  res.json(tag);
-});
-
-// Delete tag
-// Delete tag by ID
-app.delete('/tags/:id', async (req, res) => {
-  try {
-    await Tag.findByIdAndDelete(req.params.id);
-
-    // (Optional) Remove tag ID from all related notes
-    await Note.updateMany(
-      { tagIds: req.params.id },
-      { $pull: { tagIds: req.params.id } }
-    );
-
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// Update tag by ID
-app.put('/tags/:id', async (req, res) => {
-  try {
-    const { name, color } = req.body;
-    if (name === undefined && color === undefined) {
-      return res.status(400).json({ success: false, message: 'Nothing to update' });
-    }
-    const updated = await Tag.findByIdAndUpdate(
-      req.params.id,
-      { ...(name !== undefined && { name }), ...(color !== undefined && { color }) },
-      { new: true, runValidators: true }
-    );
-    if (!updated) {
-      return res.status(404).json({ success: false, message: 'Tag not found' });
-    }
-    res.json(updated);
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// --- Journal Endpoints ---
-// Get all journal entries
-app.get('/journals', async (req, res) => {
-  const journals = await Note.find({ isJournal: true });
+// --- Journals Endpoints ---
+app.get('/api/journals', requireAuth, async (req, res) => {
+  const journals = await Note.find({ isJournal: true, userId: req.userId });
   res.json(journals);
 });
 
-// Add journal entry
-app.post('/journals', async (req, res) => {
+app.post('/api/journals', requireAuth, async (req, res) => {
   const { title, content, tagIds, date, isPinned } = req.body;
   const journal = new Note({
     title,
@@ -132,30 +106,67 @@ app.post('/journals', async (req, res) => {
     date: date ? new Date(date).toISOString() : new Date().toISOString(),
     isPinned: typeof isPinned === 'boolean' ? isPinned : false,
     isJournal: true,
+    userId: req.userId,
   });
   await journal.save();
   res.json(journal);
 });
 
-// Update journal entry
-app.put('/journals/:id', async (req, res) => {
+app.get('/api/journals/:id', requireAuth, async (req, res) => {
+  const journal = await Note.findOne({ _id: req.params.id, isJournal: true, userId: req.userId });
+  if (!journal) return res.status(404).json({ error: 'Journal entry not found' });
+  res.json(journal);
+});
+
+app.put('/api/journals/:id', requireAuth, async (req, res) => {
+  const { title, content, tagIds, date, isPinned } = req.body;
   const updated = await Note.findOneAndUpdate(
-    { _id: req.params.id, isJournal: true },
-    req.body,
+    { _id: req.params.id, isJournal: true, userId: req.userId },
+    { title, content, tagIds, date, isPinned },
     { new: true }
   );
-  if (!updated) {
-    return res.status(404).json({ success: false, message: 'Journal entry not found' });
-  }
+  if (!updated) return res.status(404).json({ error: 'Journal entry not found' });
   res.json(updated);
 });
 
-// Delete journal entry
-app.delete('/journals/:id', async (req, res) => {
-  const deleted = await Note.findOneAndDelete({ _id: req.params.id, isJournal: true });
-  if (!deleted) {
-    return res.status(404).json({ success: false, message: 'Journal entry not found' });
-  }
+app.delete('/api/journals/:id', requireAuth, async (req, res) => {
+  const deleted = await Note.findOneAndDelete({ _id: req.params.id, isJournal: true, userId: req.userId });
+  if (!deleted) return res.status(404).json({ error: 'Journal entry not found' });
+  res.json({ success: true });
+});
+
+// --- Tags Endpoints ---
+app.get('/api/tags', requireAuth, async (req, res) => {
+  const tags = await Tag.find({ userId: req.userId });
+  res.json(tags);
+});
+
+app.post('/api/tags', requireAuth, async (req, res) => {
+  const { name, color } = req.body;
+  const tag = new Tag({ name, color, userId: req.userId });
+  await tag.save();
+  res.json(tag);
+});
+
+app.put('/api/tags/:id', requireAuth, async (req, res) => {
+  const { name, color } = req.body;
+  const updated = await Tag.findOneAndUpdate(
+    { _id: req.params.id, userId: req.userId },
+    { ...(name !== undefined && { name }), ...(color !== undefined && { color }) },
+    { new: true, runValidators: true }
+  );
+  if (!updated) return res.status(404).json({ error: 'Tag not found' });
+  res.json(updated);
+});
+
+app.delete('/api/tags/:id', requireAuth, async (req, res) => {
+  const deleted = await Tag.findOneAndDelete({ _id: req.params.id, userId: req.userId });
+  if (!deleted) return res.status(404).json({ error: 'Tag not found' });
+  // Remove tag ID from all related notes for this user
+  await Note.updateMany(
+    { tagIds: req.params.id, userId: req.userId },
+    { $pull: { tagIds: req.params.id } }
+  );
   res.json({ success: true });
 });
 
