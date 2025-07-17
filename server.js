@@ -35,6 +35,7 @@ const Tag = mongoose.model('Tag', tagSchema);
 
 // Clerk JWT verification middleware
 async function requireAuth(req, res, next) {
+  console.log('Authorization header:', req.headers.authorization);
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ error: 'Missing token' });
   const token = authHeader.split(' ')[1];
@@ -43,6 +44,7 @@ async function requireAuth(req, res, next) {
     req.userId = payload.sub;
     next();
   } catch (err) {
+    console.error('JWT verification failed:', err);
     return res.status(401).json({ error: 'Invalid token' });
   }
 }
