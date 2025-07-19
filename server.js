@@ -5,6 +5,9 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const { verifyToken } = require('@clerk/backend');
 
+
+console.log('Is CLERK_JWT_KEY set in this environment?', !!process.env.CLERK_JWT_KEY); 
+
 const app = express();
 app.use(cors({
   origin: [
