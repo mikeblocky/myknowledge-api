@@ -49,12 +49,13 @@ async function requireAuth(req, res, next) {
   if (!authHeader) return res.status(401).json({ error: 'Missing token' });
   const token = authHeader.split(' ')[1];
   try {
-    const payload = await verifyToken(token, process.env.CLERK_SECRET_KEY);
+    // The second argument is removed. The SDK handles the keys automatically.
+    const payload = await verifyToken(token);
     req.userId = payload.sub;
     next();
   } catch (err) {
     console.error('JWT verification failed:', err);
-    return res.status(401).json({ error: 'Invalid token' });
+    return res.status(401).json({ error: 'Invalid token', details: err.message }); // Good practice to add err.message
   }
 }
 
