@@ -16,34 +16,7 @@ const UserService = require('../services/userService');
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 id:
- *                   type: string
- *                   description: User ID
- *                 email:
- *                   type: string
- *                   description: User email
- *                 firstName:
- *                   type: string
- *                   description: User first name
- *                 lastName:
- *                   type: string
- *                   description: User last name
- *                 fullName:
- *                   type: string
- *                   description: User full name
- *                 imageUrl:
- *                   type: string
- *                   description: User profile image URL
- *                 createdAt:
- *                   type: string
- *                   format: date-time
- *                   description: Account creation date
- *                 lastSignInAt:
- *                   type: string
- *                   format: date-time
- *                   description: Last sign in date
+ *               $ref: '#/components/schemas/User'
  *       401:
  *         description: Unauthorized - missing or invalid token
  *         content:
@@ -81,26 +54,7 @@ router.get('/me', requireAuth, async (req, res) => {
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 id:
- *                   type: string
- *                 email:
- *                   type: string
- *                 firstName:
- *                   type: string
- *                 lastName:
- *                   type: string
- *                 fullName:
- *                   type: string
- *                 imageUrl:
- *                   type: string
- *                 createdAt:
- *                   type: string
- *                   format: date-time
- *                 lastSignInAt:
- *                   type: string
- *                   format: date-time
+ *               $ref: '#/components/schemas/User'
  *       401:
  *         description: Unauthorized
  *       403:
@@ -186,12 +140,7 @@ router.put('/me/metadata', requireAuth, async (req, res) => {
  *             schema:
  *               type: array
  *               items:
- *                 type: object
- *                 properties:
- *                   organization:
- *                     type: object
- *                   role:
- *                     type: string
+ *                 $ref: '#/components/schemas/Organization'
  *       401:
  *         description: Unauthorized
  *       500:
