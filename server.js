@@ -39,6 +39,24 @@ app.use('/api/notes', notesRoutes);
 app.use('/api/journals', journalsRoutes);
 app.use('/api/tags', tagsRoutes);
 
+// Default route with API information
+app.get('/', (req, res) => {
+  res.json({
+    message: 'MyKnowledge API',
+    version: '1.0.0',
+    description: 'API for managing notes, journals, and tags with user authentication',
+    documentation: `${req.protocol}://${req.get('host')}/api-docs`,
+    endpoints: {
+      notes: `${req.protocol}://${req.get('host')}/api/notes`,
+      journals: `${req.protocol}://${req.get('host')}/api/journals`,
+      tags: `${req.protocol}://${req.get('host')}/api/tags`,
+      health: `${req.protocol}://${req.get('host')}/health`
+    },
+    authentication: 'Bearer token required for all endpoints',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
