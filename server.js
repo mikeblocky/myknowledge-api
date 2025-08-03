@@ -10,6 +10,7 @@ const swaggerSpecs = require('./config/swagger');
 const notesRoutes = require('./routes/notes');
 const journalsRoutes = require('./routes/journals');
 const tagsRoutes = require('./routes/tags');
+const usersRoutes = require('./routes/users');
 
 console.log('Is CLERK_JWT_KEY set in this environment?', !!process.env.CLERK_JWT_KEY); 
 
@@ -38,6 +39,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 app.use('/api/notes', notesRoutes);
 app.use('/api/journals', journalsRoutes);
 app.use('/api/tags', tagsRoutes);
+app.use('/api/users', usersRoutes);
 
 // Default route with API information
 app.get('/', (req, res) => {
@@ -50,6 +52,7 @@ app.get('/', (req, res) => {
       notes: `${req.protocol}://${req.get('host')}/api/notes`,
       journals: `${req.protocol}://${req.get('host')}/api/journals`,
       tags: `${req.protocol}://${req.get('host')}/api/tags`,
+      users: `${req.protocol}://${req.get('host')}/api/users`,
       health: `${req.protocol}://${req.get('host')}/health`
     },
     authentication: 'Bearer token required for all endpoints',
